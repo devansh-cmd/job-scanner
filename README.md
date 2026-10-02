@@ -64,14 +64,18 @@ A main board that sends nothing shows as a red warning in the digest.
 | `jobscan/judge/jev.py` | Jev adapter. Builds questions from `models.py`. Only `_call()` is left, to fill from Jev docs. |
 | **Output** | |
 | `jobscan/route.py` | Probabilities to buckets using `settings.yaml` thresholds. Ranks by role order. |
-| `jobscan/digest.py` | Builds the HTML email: counts, Strong, Check manually, drops by reason, coverage per source. |
+| `jobscan/digest.py` | Builds the short morning email (top matches + dashboard link) and the full HTML report. |
+| `jobscan/db.py` | Supabase (Postgres) table shared by the daily run and the dashboard. Inserts never overwrite your status. |
 | `jobscan/notify.py` | Sends the email via Gmail SMTP (app password). |
 | **Config** | |
 | `config/settings.yaml` | Every tunable number: judge choice, salary floor, gate thresholds, role ranking, search terms. |
 | `config/profile.yaml` | Short candidate profile sent to the judge with every job. |
 | `config/companies.yaml` | Company ATS slugs to fetch directly. Starting list is unverified. |
 | **Ops** | |
-| `.github/workflows/daily.yml` | Runs every day at 06:00 UTC, emails you, commits `data/jobs.db` back. |
+| `.github/workflows/daily.yml` | Runs every day at 06:00 UTC, saves jobs to Supabase, emails you, keeps the full report as a run artifact, commits `data/jobs.db` back. |
+| **Dashboard** | |
+| `dashboard/app.py` | Streamlit app: filter jobs, set status (interested, applied, interviewing...), notes, application tracker. |
+| `dashboard/requirements.txt` | What Streamlit Cloud installs for the dashboard. |
 | `scripts/check_companies.py` | Tests every slug in `companies.yaml`, lists broken ones. |
 | `scripts/gmail_auth.py` | One-time Gmail OAuth, prints the refresh token for GitHub Secrets. |
 | `tests/test_pipeline.py` | Prefilter, routing, enrich, parsers, Jev question building. |
@@ -105,6 +109,30 @@ A main board that sends nothing shows as a red warning in the digest.
 5. Save one real alert email per board to `tests/fixtures/`. If the generic parser
    picks up junk links for a board, give it its own parser (copy `parsers/indeed.py`).
 6. A board with no alert option goes under `manual_check` instead.
+
+## Dashboard (Supabase + Streamlit)
+
+**Supabase (database)**
+1. supabase.com > New project (free tier). Save the database password.
+2. Project > Connect > **Session pooler** > copy the URI. Put your password in it.
+   (Not "Direct connection": that one is IPv6-only and fails from GitHub Actions.)
+3. GitHub secret `SUPABASE_DB_URL` = that URI. The table is created on the first run.
+
+**Streamlit Community Cloud (dashboard)**
+1. share.streamlit.io > sign in with GitHub > Create app > this repo, branch `main`,
+   main file `dashboard/app.py`.
+2. Advanced settings > Secrets:
+   ```
+   SUPABASE_DB_URL = "postgresql://...session pooler URI..."
+   DASHBOARD_PASSWORD = "pick-a-password"
+   ```
+3. Deploy, copy the app link into `email.dashboard_url` in `config/settings.yaml`.
+
+**Run it locally:** `pip install -r dashboard/requirements.txt`, put the same two
+lines in `.streamlit/secrets.toml` (git-ignored), then `streamlit run dashboard/app.py`.
+
+**Statuses:** new, interested, applied, interviewing, offer, rejected, hidden.
+Hidden and rejected are filtered out by default.
 
 ## Switching to Jev
 

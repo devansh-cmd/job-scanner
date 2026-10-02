@@ -12,7 +12,7 @@ from pathlib import Path
 
 import yaml
 
-from jobscan import digest, notify, prefilter
+from jobscan import db, digest, notify, prefilter
 from jobscan.enrich import enrich
 from jobscan.judge import make_judge
 from jobscan.models import Bucket, RoutedJob
@@ -150,18 +150,37 @@ def main() -> None:
     routed = [route(j, v, register.is_sponsor(j.company), settings) for j, v in zip(kept, verdicts)]
     routed += pre_dropped  # recorded too, so they are never re-checked
 
-    # 7. Digest
+    # 7. Save to Supabase (the dashboard reads from here).
+    # Prefilter drops are skipped: they were never judged, so they are just noise.
     stats = {"fetched": fetched, "new": new, "dupes": dupes, "judge": settings["judge"]}
-    subject, html = digest.build(routed, coverage, stats, settings.get("manual_check"))
+    db_error = None
+    if not args.dry_run and db.db_url():
+        try:
+            added = db.save([r for r in routed if r.verdict is not None])
+            print(f"[db] {added} jobs added to Supabase")
+        except Exception as e:  # noqa: BLE001
+            db_error = f"{type(e).__name__}: {e}"[:200]
+            print(f"[db] FAILED: {db_error}")
+    stats["db_error"] = db_error
+
+    # 8. Digest: full report always saved; email is a short nudge when a dashboard exists
+    subject, full_html = digest.build(routed, coverage, stats, settings.get("manual_check"))
     subject = f'{settings["email"]["subject_prefix"]} {subject}'
     out = ROOT / "out"
     out.mkdir(exist_ok=True)
-    (out / "digest.html").write_text(html, encoding="utf-8")
-    print(f"[digest] {subject} -> out/digest.html")
+    (out / "digest.html").write_text(full_html, encoding="utf-8")
+    dash = settings["email"].get("dashboard_url") or ""
+    email_html = digest.build_nudge(routed, coverage, stats, dash) if dash else full_html
+    (out / "email.html").write_text(email_html, encoding="utf-8")
+    print(f"[digest] {subject} -> out/digest.html, out/email.html")
 
     if args.dry_run:
         return
-    notify.send(subject, html)
+    notify.send(subject, email_html)
+    if db_error:
+        # Leave jobs unrecorded so tomorrow's run retries the Supabase insert.
+        print("[done] emailed; NOT marking jobs as seen because the database save failed")
+        raise SystemExit(1)
     store.record(routed)  # only after the email went out
     print("[done] emailed and saved")
 

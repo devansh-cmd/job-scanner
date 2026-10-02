@@ -138,3 +138,35 @@ def test_indeed_parser():
       <div>Acme Analytics - Bristol</div><div>£35,000 a year</div></div>"""
     [j] = indeed.parse(html)
     assert "jk=abc123def4567890" in j.url and j.company == "Acme Analytics"
+
+
+# ---- Supabase/Postgres layer (runs only when TEST_DB_URL points at a scratch database) ----
+import os  # noqa: E402
+
+import pytest  # noqa: E402
+
+from jobscan import db  # noqa: E402
+
+
+@pytest.mark.skipif(not os.environ.get("TEST_DB_URL"), reason="set TEST_DB_URL to a scratch Postgres")
+def test_db_save_never_overwrites_status():
+    url = os.environ["TEST_DB_URL"]
+    with db.connect(url) as c:
+        db.init(c)
+        c.execute("DELETE FROM jobs WHERE id LIKE 'test%'")
+    j = job(url="https://test.example/1", description="Graduate 2027 Python ML visa sponsorship available.")
+    r = route(j, JUDGE.judge(j), True, CFG)
+    assert db.save([r], url) == 1
+    assert db.save([r], url) == 0
+    with db.connect(url) as c:
+        db.update(c, j.id, "applied", "sent")
+    db.save([r], url)
+    with db.connect(url) as c:
+        row = c.execute("SELECT status, notes FROM jobs WHERE id=%s", (j.id,)).fetchone()
+        c.execute("DELETE FROM jobs WHERE id=%s", (j.id,))
+    assert row == {"status": "applied", "notes": "sent"}
+
+
+def test_db_rejects_unknown_status():
+    with pytest.raises(ValueError):
+        db.update(None, "x", "maybe", "")

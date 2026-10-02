@@ -8,6 +8,9 @@ from html import escape
 
 from jobscan.models import Bucket, RoutedJob
 
+ROLE_LABEL = {"swe_ai_ml": "SWE / AI-ML", "product_management": "Product", "tech_consulting": "Consulting",
+              "quant_dev": "Quant dev", "data_science": "Data science", "tech_risk": "Tech risk", "other": "Other"}
+
 CSS = """
 body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1d1d1f;max-width:760px;margin:auto;padding:16px}
 h1{font-size:20px;margin:0 0 4px} h2{font-size:16px;margin:24px 0 8px;border-bottom:1px solid #ddd;padding-bottom:4px}
@@ -46,6 +49,49 @@ def _cov_row(c: dict) -> str:
                 if c["fetched"] == 0 and tier == "main" else "")
         status = f"<td>{c['fetched']}</td><td>{warn}</td>"
     return f"<tr><td>{name}</td><td>{emails}</td>{status}</tr>"
+
+
+def build_nudge(routed: list[RoutedJob], coverage: list[dict], stats: dict,
+                dashboard_url: str, top_n: int = 5) -> str:
+    """Short morning email: counts, top strong jobs, link to the dashboard,
+    and any source problems. Inline styles so every mail client renders it."""
+    strong = sorted([r for r in routed if r.bucket == Bucket.strong], key=lambda r: -r.rank_score)
+    n_check = sum(1 for r in routed if r.bucket == Bucket.check)
+    a = "color:#0a58ca;font-weight:600;text-decoration:none"
+    muted = "color:#666;font-size:13px"
+
+    rows = "".join(
+        f'<tr><td style="padding:8px 0;border-bottom:1px solid #eee">'
+        f'<a style="{a}" href="{escape(r.job.url)}">{escape(r.job.title)}</a><br>'
+        f'<span style="{muted}">{escape(r.job.company)} · {escape(r.job.location or "UK")}'
+        f' · {escape(ROLE_LABEL.get(r.verdict.fit.role_family.value, "") if r.verdict else "")}</span></td></tr>'
+        for r in strong[:top_n])
+    more = len(strong) - top_n
+
+    problems = []
+    if stats.get("db_error"):
+        problems.append(f"Dashboard database save failed: {stats['db_error']}")
+    for c in coverage:
+        if c.get("error"):
+            problems.append(f"{c['source']}: {c['error']}")
+        elif c.get("tier") == "main" and c.get("fetched") == 0:
+            problems.append(f"{c['source']}: 0 jobs from a main board")
+    problems_html = ""
+    if problems:
+        items = "".join(f"<li>{escape(p)}</li>" for p in problems[:8])
+        extra = f"<li>+{len(problems) - 8} more in the full report</li>" if len(problems) > 8 else ""
+        problems_html = (f'<p style="margin:20px 0 4px;font-weight:600;color:#b00020">Source problems</p>'
+                         f'<ul style="{muted};margin:0;padding-left:18px">{items}{extra}</ul>')
+
+    return f"""<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1d1d1f;max-width:600px;margin:auto;padding:16px">
+<h1 style="font-size:20px;margin:0 0 4px">Job Scanner · {date.today():%A %d %B}</h1>
+<p style="{muted};margin:0 0 16px">{len(strong)} strong · {n_check} to check · {stats["new"]} new listings scanned</p>
+<a href="{escape(dashboard_url)}" style="display:inline-block;background:#1d1d1f;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Open dashboard</a>
+<p style="margin:20px 0 4px;font-weight:600">Top strong matches</p>
+<table style="width:100%;border-collapse:collapse">{rows or f'<tr><td style="{muted}">None today.</td></tr>'}</table>
+{f'<p style="{muted}">+{more} more strong in the dashboard.</p>' if more > 0 else ''}
+{problems_html}
+</div>"""
 
 
 def build(routed: list[RoutedJob], coverage: list[dict], stats: dict,

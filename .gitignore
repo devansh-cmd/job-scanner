@@ -6,3 +6,4 @@ out/
 data/sponsors.csv
 scripts/credentials.json
 .pytest_cache/
+.streamlit/secrets.toml

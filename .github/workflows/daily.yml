@@ -43,6 +43,7 @@ jobs:
           GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
           GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
           JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: python -m jobscan.main
 
       - name: Keep today's digest (downloadable from the run page)
@@ -50,7 +51,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: digest
-          path: out/digest.html
+          path: out/*.html
           if-no-files-found: ignore
 
       - name: Save seen-jobs state
