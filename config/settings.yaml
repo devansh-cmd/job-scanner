@@ -68,4 +68,4 @@ search_terms:             # used by Adzuna / Reed (only if switched on)
 email:
   subject_prefix: "[Job Scanner]"  # separate from the weekly grad-scheme check
   # Paste your Streamlit app link here once deployed. Empty = full report by email.
-  dashboard_url: ""
+  dashboard_url: "https://dev-job-scanner.streamlit.app/"
