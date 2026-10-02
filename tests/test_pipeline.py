@@ -103,6 +103,27 @@ def test_job_id_ignores_query_string():
     assert job(url="https://a.com/j/1?utm=x").id == job(url="https://a.com/j/1").id
 
 
+# ---- alert sender routing ----
+from jobscan.sources.gmail_alerts import match_sender, parse_email  # noqa: E402
+
+SENDERS = CFG["alert_senders"]
+
+def test_core_boards_configured():
+    names = {s["name"] for s in SENDERS if s["tier"] == "main"}
+    assert names == {"linkedin", "indeed", "student_circus", "milkround", "bristol_mycareer"}
+
+def test_sender_matching():
+    assert match_sender("LinkedIn Job Alerts <jobalerts-noreply@linkedin.com>", SENDERS)["name"] == "linkedin"
+    assert match_sender("Milkround <alerts@milkround.com>", SENDERS)["name"] == "milkround"
+    assert match_sender("someone@random.org", SENDERS) is None
+
+def test_alert_jobs_tagged_with_board():
+    html = '<div><a href="https://www.milkround.com/job/graduate-developer/acme-job123">Graduate Developer</a>' \
+           '<p>Acme</p><p>Bristol</p></div>'
+    [j] = parse_email(html, "Milkround <alerts@milkround.com>", SENDERS)
+    assert j.source == "milkround_alert" and j.title == "Graduate Developer"
+
+
 # ---- parsers (synthetic HTML; re-check against a real alert email) ----
 def test_linkedin_parser():
     html = """<table><tr><td>

@@ -43,19 +43,43 @@ def load(name: str) -> dict:
 
 
 def build_sources(settings: dict, companies: dict) -> list[Source]:
-    srcs: list[Source] = [SimplifyNewGrad()]
-    srcs += [Greenhouse(s) for s in companies.get("greenhouse") or []]
-    srcs += [Lever(s) for s in companies.get("lever") or []]
-    srcs += [Ashby(s) for s in companies.get("ashby") or []]
-    # Keyed sources only run when their secrets exist
-    if os.environ.get("ADZUNA_APP_ID"):
-        srcs.append(Adzuna(settings["search_terms"]))
-    if os.environ.get("REED_API_KEY"):
-        srcs.append(Reed(settings["search_terms"]))
-    if os.environ.get("GMAIL_REFRESH_TOKEN"):
+    on = settings.get("sources", {})
+    srcs: list[Source] = []
+    if on.get("gmail_alerts", True) and os.environ.get("GMAIL_REFRESH_TOKEN"):
         from jobscan.sources.gmail_alerts import GmailAlerts
-        srcs.append(GmailAlerts())
+        srcs.append(GmailAlerts(settings["alert_senders"]))
+    if on.get("ats", True):
+        srcs += [Greenhouse(s) for s in companies.get("greenhouse") or []]
+        srcs += [Lever(s) for s in companies.get("lever") or []]
+        srcs += [Ashby(s) for s in companies.get("ashby") or []]
+    if on.get("simplify_newgrad"):
+        srcs.append(SimplifyNewGrad())
+    if on.get("adzuna") and os.environ.get("ADZUNA_APP_ID"):
+        srcs.append(Adzuna(settings["search_terms"]))
+    if on.get("reed") and os.environ.get("REED_API_KEY"):
+        srcs.append(Reed(settings["search_terms"]))
     return srcs
+
+
+def alert_coverage(settings: dict, sources: list[Source], jobs: list) -> list[dict]:
+    """One coverage row per alert board, so a board that sent nothing is visible."""
+    senders = settings.get("alert_senders", [])
+    gmail = next((s for s in sources if s.name == "gmail_alerts"), None)
+    if gmail is None:
+        if not settings.get("sources", {}).get("gmail_alerts", True):
+            return []
+        return [{"source": f"{s['name']} (alert)", "tier": s["tier"], "fetched": 0,
+                 "error": "Gmail not connected yet (run scripts/gmail_auth.py)"} for s in senders]
+    rows = []
+    for s in senders:
+        n_jobs = sum(1 for j in jobs if j.source == f"{s['name']}_alert")
+        rows.append({"source": f"{s['name']} (alert)", "tier": s["tier"], "fetched": n_jobs,
+                     "emails": gmail.emails_by_sender.get(s["name"], 0)})
+    if gmail.emails_by_sender.get("unmatched"):
+        rows.append({"source": "unmatched senders (alert)", "tier": "extra",
+                     "fetched": sum(1 for j in jobs if j.source.startswith("alert:")),
+                     "emails": gmail.emails_by_sender["unmatched"]})
+    return rows
 
 
 def main() -> None:
@@ -76,13 +100,18 @@ def main() -> None:
         sources = [s for s in sources if s.name == args.only]
     jobs, coverage = [], []
     for src in sources:
+        got = []
         try:
             got = src.fetch()
             jobs += got
-            coverage.append({"source": src.name, "fetched": len(got)})
+            if src.name != "gmail_alerts":  # alert boards get their own rows below
+                coverage.append({"source": src.name, "tier": "extra", "fetched": len(got)})
         except Exception as e:  # noqa: BLE001
-            coverage.append({"source": src.name, "fetched": 0, "error": f"{type(e).__name__}: {e}"[:160]})
-        print(f"[fetch] {coverage[-1]}")
+            coverage.append({"source": src.name, "tier": "main" if src.name == "gmail_alerts" else "extra",
+                             "fetched": 0, "error": f"{type(e).__name__}: {e}"[:160]})
+        print(f"[fetch] {src.name}: {len(got)} jobs")
+    if not args.only:
+        coverage = alert_coverage(settings, sources, jobs) + coverage
 
     # 2. Dedupe against history + within run
     store = Store(ROOT / "data" / "jobs.db")
@@ -123,7 +152,7 @@ def main() -> None:
 
     # 7. Digest
     stats = {"fetched": fetched, "new": new, "dupes": dupes, "judge": settings["judge"]}
-    subject, html = digest.build(routed, coverage, stats)
+    subject, html = digest.build(routed, coverage, stats, settings.get("manual_check"))
     subject = f'{settings["email"]["subject_prefix"]} {subject}'
     out = ROOT / "out"
     out.mkdir(exist_ok=True)

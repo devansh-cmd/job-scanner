@@ -35,7 +35,21 @@ def _job_html(r: RoutedJob) -> str:
             f'<div class="why">{escape("; ".join(r.reasons))}</div></div>')
 
 
-def build(routed: list[RoutedJob], coverage: list[dict], stats: dict) -> tuple[str, str]:
+def _cov_row(c: dict) -> str:
+    tier = c.get("tier", "")
+    name = f"<b>{escape(c['source'])}</b>" if tier == "main" else escape(c["source"])
+    emails = c.get("emails", "")
+    if c.get("error"):
+        status = f'<td colspan="2" class="err">{escape(c["error"])}</td>'
+    else:
+        warn = ("<span class=err>0 from a main board, check its alert</span>"
+                if c["fetched"] == 0 and tier == "main" else "")
+        status = f"<td>{c['fetched']}</td><td>{warn}</td>"
+    return f"<tr><td>{name}</td><td>{emails}</td>{status}</tr>"
+
+
+def build(routed: list[RoutedJob], coverage: list[dict], stats: dict,
+          manual_check: list[dict] | None = None) -> tuple[str, str]:
     """Returns (subject, html)."""
     strong = sorted([r for r in routed if r.bucket == Bucket.strong], key=lambda r: -r.rank_score)
     check = sorted([r for r in routed if r.bucket == Bucket.check], key=lambda r: -r.rank_score)
@@ -44,11 +58,10 @@ def build(routed: list[RoutedJob], coverage: list[dict], stats: dict) -> tuple[s
 
     subject = f"{date.today():%a %d %b}: {len(strong)} strong, {len(check)} to check"
 
-    cov_rows = "".join(
-        f"<tr><td>{escape(c['source'])}</td>"
-        + (f'<td colspan="2" class="err">ERROR: {escape(c["error"])}</td>' if c.get("error")
-           else f"<td>{c['fetched']}</td><td>{'<span class=err>0, check source</span>' if c['fetched'] == 0 else ''}</td>")
-        + "</tr>" for c in coverage)
+    cov_rows = "".join(_cov_row(c) for c in coverage)
+    manual_html = "".join(
+        f'<li><a href="{escape(m["url"])}">{escape(m["name"])}</a> · {escape(m.get("note", ""))}</li>'
+        for m in (manual_check or []))
 
     parts = [
         f"<style>{CSS}</style>",
@@ -60,10 +73,12 @@ def build(routed: list[RoutedJob], coverage: list[dict], stats: dict) -> tuple[s
         "".join(_job_html(r) for r in strong) or "<p class=sub>None today.</p>",
         f"<h2>Check manually ({len(check)})</h2>",
         "".join(_job_html(r) for r in check) or "<p class=sub>None today.</p>",
+        (f"<h2>Check by hand</h2><ul>{manual_html}</ul>" if manual_html else ""),
         "<h2>Dropped by reason</h2><table>",
         "".join(f"<tr><td>{escape(k)}</td><td>{v}</td></tr>" for k, v in drop_reasons.most_common()),
         "</table>",
-        "<h2>Coverage by source</h2><table><tr><th>Source</th><th>Fetched</th><th></th></tr>",
+        "<h2>Coverage by source</h2><div class=sub>Bold = main boards.</div>"
+        "<table><tr><th>Source</th><th>Emails</th><th>Jobs</th><th></th></tr>",
         cov_rows, "</table>",
     ]
     return subject, "\n".join(parts)

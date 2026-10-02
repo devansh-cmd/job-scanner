@@ -26,7 +26,34 @@ role_rank:                # higher = shown first. Order agreed 2 Oct 2026.
   tech_risk: 1
   other: 0
 
-search_terms:             # used by Adzuna / Reed
+sources:                  # turn whole sources on/off
+  gmail_alerts: true      # core: all job-board alert emails (see alert_senders)
+  ats: true               # company boards in companies.yaml (full descriptions)
+  adzuna: false           # off: too much non-grad noise
+  reed: false             # off: too much non-grad noise
+  simplify_newgrad: false # off: mostly US roles
+
+# Alert emails land in the Gmail label `job-alerts`. Each sender is matched on
+# its From address. `match` values are best guesses: after the first real alert
+# from each site, check the From address and fix the match if needed.
+# tier main = your core boards. A main board with 0 jobs gets flagged in the digest.
+alert_senders:
+  - {name: linkedin,       match: linkedin.com,            parser: linkedin, tier: main}
+  - {name: indeed,         match: indeed.com,              parser: indeed,   tier: main}
+  - {name: student_circus, match: studentcircus.com,       parser: generic,  tier: main}
+  - {name: milkround,      match: milkround.com,           parser: generic,  tier: main}
+  - {name: bristol_mycareer, match: bristol.ac.uk,         parser: generic,  tier: main}
+  - {name: bright_network, match: brightnetwork.co.uk,     parser: generic,  tier: extra}
+  - {name: prospects,      match: prospects.ac.uk,         parser: generic,  tier: extra}
+  - {name: targetjobs,     match: targetjobs.co.uk,        parser: generic,  tier: extra}
+  - {name: otta,           match: welcometothejungle.com,  parser: generic,  tier: extra}
+
+# Boards with no usable alert email go here and show as a reminder in the digest.
+# Move a board from here into alert_senders once you find an alert option on it.
+manual_check:
+  - {name: The Trackr, url: "https://www.the-trackr.com", note: "grad scheme opening dates"}
+
+search_terms:             # used by Adzuna / Reed (only if switched on)
   - graduate software engineer
   - junior software engineer
   - machine learning engineer graduate

@@ -18,6 +18,26 @@ notify (email) ──► store.record                          sponsors (Home Of
 Searching is plain code (same sources every run, counts shown per source).
 Only the judging is AI. That split is what stops coverage from drifting.
 
+## Sources
+
+| Board | Tier | How it comes in |
+|---|---|---|
+| LinkedIn | main | Alert email, own parser |
+| Indeed | main | Alert email, own parser |
+| Student Circus | main | Alert email, generic parser |
+| Milkround | main | Alert email, generic parser |
+| Bristol mycareer | main | Alert email, generic parser |
+| Bright Network | extra | Alert email, generic parser |
+| Prospects | extra | Alert email, generic parser |
+| TargetJobs | extra | Alert email, generic parser |
+| Otta | extra | Alert email, generic parser |
+| Company boards (Greenhouse, Lever, Ashby) | backup | Public API, full descriptions |
+| The Trackr | manual | Link in the digest's "Check by hand" list |
+| Adzuna, Reed, SimplifyJobs | off | Code kept, switched off in `settings.yaml` |
+
+All boards are listed in `config/settings.yaml` under `alert_senders`.
+A main board that sends nothing shows as a red warning in the digest.
+
 ## Repo map
 
 | Path | What it does |
@@ -28,7 +48,7 @@ Only the judging is AI. That split is what stops coverage from drifting.
 | `jobscan/sources/base.py` | `Source` interface, HTTP helper, HTML-to-text. |
 | `jobscan/sources/ats.py` | Greenhouse, Lever, Ashby public APIs. Full descriptions, no keys. |
 | `jobscan/sources/boards.py` | Adzuna and Reed (free keys), SimplifyJobs new-grad list (no key). |
-| `jobscan/sources/gmail_alerts.py` | Reads LinkedIn / Indeed / other alert emails from your `job-alerts` Gmail label. |
+| `jobscan/sources/gmail_alerts.py` | Reads all board alert emails from your `job-alerts` Gmail label, routes each to its parser by sender. |
 | `jobscan/parsers/linkedin.py` | Pulls jobs out of LinkedIn alert emails (`/jobs/view/<id>` links). |
 | `jobscan/parsers/indeed.py` | Pulls jobs out of Indeed alert emails (`jk=<id>` links). |
 | `jobscan/parsers/generic.py` | Fallback for any other alert sender. |
@@ -74,12 +94,17 @@ Only the judging is AI. That split is what stops coverage from drifting.
    Optional: `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `REED_API_KEY`, Gmail trio, `JEV_API_KEY`.
 7. Actions tab > daily-job-scan > Run workflow, to test once.
 
-## LinkedIn / Indeed
+## Alert setup (all boards)
 
-1. Set daily job alerts on both sites (UK, entry level, one per role family).
-2. Gmail filter on the alert senders, apply label `job-alerts`.
-3. `python scripts/gmail_auth.py`, add the three `GMAIL_*` secrets.
-4. Save one real alert email per site to `tests/fixtures/` and check the parsers against it.
+1. On each board, set daily job alerts (UK, graduate / entry level, one per role family).
+2. When the first alert from a board arrives, check its From address.
+   If it differs from `match` in `settings.yaml`, update it.
+3. Gmail: "Filter messages like these" on that exact sender, apply label `job-alerts`.
+   For Bristol mycareer, filter on the exact alert address, not all of `bristol.ac.uk`.
+4. `python scripts/gmail_auth.py`, add the three `GMAIL_*` secrets.
+5. Save one real alert email per board to `tests/fixtures/`. If the generic parser
+   picks up junk links for a board, give it its own parser (copy `parsers/indeed.py`).
+6. A board with no alert option goes under `manual_check` instead.
 
 ## Switching to Jev
 
