@@ -1,0 +1,11 @@
+# Compact candidate profile sent to the judge alongside every job.
+# Short on purpose: cheaper calls, sharper scores.
+profile: >
+  MSc Artificial Intelligence, University of Bristol, finishing September 2027.
+  BSc Computer Science (AI), Royal Holloway, First Class, July 2026.
+  Strong Python. Working PyTorch, scikit-learn, NumPy, FastAPI, SQL.
+  ML research and evaluation pipelines, deep learning on audio.
+  Internships at Deloitte, PwC (twice), Fortum: LLM tooling, frontend, data analysis.
+  Research Assistant at RHUL. Needs UK Skilled Worker visa sponsorship.
+  Open to SWE, AI/ML engineering, product management, tech consulting,
+  quant dev, data science, tech risk. 0 to 2 years experience. Anywhere in the UK.

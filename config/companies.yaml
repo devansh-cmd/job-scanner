@@ -1,0 +1,28 @@
+# Companies fetched directly from their ATS (full descriptions, very reliable).
+# slug = the company's board name in the ATS URL, e.g.
+#   boards.greenhouse.io/<slug>   jobs.lever.co/<slug>   jobs.ashbyhq.com/<slug>
+#
+# These are UNVERIFIED starting guesses. Run:
+#   python scripts/check_companies.py
+# It hits each board and tells you which slugs work. Fix or delete the rest.
+# A broken slug also shows as an error in the digest's coverage table.
+
+greenhouse:
+  - monzo
+  - gocardless
+  - wise
+  - deliveroo
+  - checkoutcom
+  - octopusenergy
+  - isomorphiclabs
+  - deepmind
+
+lever:
+  - palantir
+  - spotify
+
+ashby:
+  - cohere
+  - synthesia
+  - elevenlabs
+  - polyai

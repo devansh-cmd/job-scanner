@@ -1,0 +1,42 @@
+# All tunable numbers live here. Change these, not the code.
+
+judge: heuristic          # heuristic (free, offline) | jev (once you have a key)
+
+salary:
+  new_entrant_floor_gbp: 33400   # Skilled Worker new-entrant minimum (2026). Verify on gov.uk if rules change.
+
+gates:                    # drop if probability crosses these
+  no_sponsorship_wording_max: 0.8
+  requires_clearance_max: 0.8
+  requires_a_level_maths_max: 0.8
+  accepts_sept_2027_finish_min: 0.2
+  max_2_years_experience_min: 0.2
+  uk_based_min: 0.2
+
+strong:                   # all must hold for the Strong bucket
+  offers_sponsorship_min: 0.7      # OR company is on the Home Office sponsor register
+  profile_match_min: 4
+
+role_rank:                # higher = shown first. Order agreed 2 Oct 2026.
+  swe_ai_ml: 6
+  product_management: 5
+  tech_consulting: 4
+  quant_dev: 3
+  data_science: 2
+  tech_risk: 1
+  other: 0
+
+search_terms:             # used by Adzuna / Reed
+  - graduate software engineer
+  - junior software engineer
+  - machine learning engineer graduate
+  - AI engineer graduate
+  - associate product manager
+  - graduate product manager
+  - graduate technology consultant
+  - graduate quantitative developer
+  - graduate data scientist
+  - graduate technology risk
+
+email:
+  subject_prefix: "[Job Scanner]"  # separate from the weekly grad-scheme check
