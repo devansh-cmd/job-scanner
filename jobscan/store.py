@@ -24,14 +24,14 @@ class Store:
         self.db = sqlite3.connect(path)
         self.db.executescript(SCHEMA)
 
-    def filter_new(self, jobs: list[RawJob]) -> list[RawJob]:
-        """Drop jobs seen in earlier runs, and duplicates within this run."""
+    def filter_new(self, jobs: list[RawJob], ignore_history: bool = False) -> list[RawJob]:
+        """Drop jobs seen in earlier runs (unless re-judging), and duplicates within this run."""
         out, ids = [], set()
         for j in jobs:
             if j.id in ids:
                 continue
             ids.add(j.id)
-            if self.db.execute("SELECT 1 FROM seen WHERE id=?", (j.id,)).fetchone() is None:
+            if ignore_history or self.db.execute("SELECT 1 FROM seen WHERE id=?", (j.id,)).fetchone() is None:
                 out.append(j)
         return out
 

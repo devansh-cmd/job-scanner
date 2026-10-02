@@ -58,7 +58,13 @@ VALUES (%(id)s, %(source)s, %(company)s, %(title)s, %(url)s, %(location)s, %(sal
         %(salary_max)s, %(bucket)s, %(reasons)s, %(role_family)s, %(profile_match)s,
         %(ml_relevance)s, %(python_centrality)s, %(sponsorship_p)s, %(on_register)s,
         %(light_data)s, %(rank_score)s)
-ON CONFLICT (id) DO NOTHING
+ON CONFLICT (id) DO UPDATE SET
+    -- Re-judged jobs get fresh scores; status, notes and first_seen are never touched.
+    bucket = EXCLUDED.bucket, reasons = EXCLUDED.reasons, role_family = EXCLUDED.role_family,
+    profile_match = EXCLUDED.profile_match, ml_relevance = EXCLUDED.ml_relevance,
+    python_centrality = EXCLUDED.python_centrality, sponsorship_p = EXCLUDED.sponsorship_p,
+    on_register = EXCLUDED.on_register, light_data = EXCLUDED.light_data,
+    rank_score = EXCLUDED.rank_score
 """
 
 
@@ -96,7 +102,7 @@ def _row(r: RoutedJob) -> dict:
 
 
 def save(routed: list[RoutedJob], url: str | None = None) -> int:
-    """Insert new jobs. Returns how many rows were actually added."""
+    """Insert new jobs and refresh scores on existing ones. Returns rows added."""
     with connect(url) as conn:
         init(conn)
         before = conn.execute("SELECT count(*) AS n FROM jobs").fetchone()["n"]
@@ -104,6 +110,20 @@ def save(routed: list[RoutedJob], url: str | None = None) -> int:
             cur.executemany(INSERT, [_row(r) for r in routed])
         after = conn.execute("SELECT count(*) AS n FROM jobs").fetchone()["n"]
     return after - before
+
+
+def mark_dropped(routed: list[RoutedJob], url: str | None = None) -> int:
+    """Prefilter drops are not stored as new rows, but if an existing row is now
+    caught by a stricter rule, move it to the drop bucket. Status is untouched."""
+    if not routed:
+        return 0
+    with connect(url) as conn:
+        init(conn)
+        with conn.cursor() as cur:
+            cur.executemany(
+                "UPDATE jobs SET bucket='drop', reasons=%s WHERE id=%s AND bucket <> 'drop'",
+                [("; ".join(r.reasons), r.job.id) for r in routed])
+            return cur.rowcount or 0
 
 
 # ---------- used by the dashboard ----------

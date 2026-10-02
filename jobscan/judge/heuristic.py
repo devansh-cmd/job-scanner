@@ -30,9 +30,29 @@ class HeuristicJudge(Judge):
         t = job.as_text()
         title = job.title
 
-        exp_years = [int(n) for n in re.findall(r"(\d+)\+?\s*(?:-\s*\d+\s*)?years?", t, re.I)]
-        too_senior = any(n >= 3 for n in exp_years if n < 20)
-        grad_words = re.search(r"graduate|grad\b|new grad|entry[- ]level|junior|early career|associate", t, re.I)
+        # "3+ years", "at least 4 years", "5-7 years of experience" (first number = minimum)
+        exp_years = [int(n) for n in re.findall(
+            r"(\d{1,2})\s*\+?\s*(?:-|–|to)?\s*(?:\d{1,2}\s*)?\+?\s*years?", t, re.I)]
+        too_senior = any(3 <= n < 20 for n in exp_years)
+        junior_years = any(n <= 2 for n in exp_years) and not too_senior
+        # Entry-level signal must be explicit. "graduate" alone is too loose
+        # ("graduate degree"), so match graduate-scheme phrasing instead.
+        entry_title = re.search(r"\b(graduate|grad|new grad|junior|jr\.?|entry[- ]level|early career|"
+                                r"trainee|associate|apprentice|campus|university|class of 20\d\d|"
+                                r"20(26|27) start)\b", title, re.I)
+        entry_text = re.search(r"new grad|graduate (scheme|programme|program|role|position|intake|"
+                               r"engineer|developer|opportunit)|recent graduates?|early[- ]careers?|"
+                               r"entry[- ]level|junior|no (prior|previous) experience|"
+                               r"(final[- ]year|graduating) students?|class of 20(26|27)", t, re.I)
+        if too_senior:
+            exp = NO
+        elif entry_title or entry_text or junior_years:
+            exp = YES
+        elif job.light_data:
+            exp = MAYBE  # alert snippets: the board's own entry-level filter already applied
+        else:
+            exp = 0.1    # full posting with no entry-level signal = mid-level by default
+        grad_words = entry_title or entry_text
 
         gates = Gates(
             offers_sponsorship=_p(t, r"visa sponsorship (is )?(available|offered|provided)|"
@@ -43,7 +63,7 @@ class HeuristicJudge(Judge):
             accepts_sept_2027_finish=(NO if re.search(r"graduat\w* (by|before) (june|july|august) 2027|"
                                                       r"(june|july|august) 2027 start", t, re.I)
                                       else YES if re.search(r"2027|2028", t) else MAYBE),
-            max_2_years_experience=NO if too_senior else (YES if grad_words else MAYBE),
+            max_2_years_experience=exp,
             requires_clearance=_p(t, r"\b(sc|dv|security) clearance|\bdv\b cleared|eligible for sc|bpss and sc"),
             requires_a_level_maths=_p(t, r"a[- ]level (further )?math"),
             uk_based=YES if job.location else MAYBE,  # prefilter already dropped non-UK

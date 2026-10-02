@@ -3,7 +3,12 @@ name: daily-job-scan
 on:
   schedule:
     - cron: "0 6 * * *"   # 06:00 UTC = 07:00 UK summer, 06:00 UK winter
-  workflow_dispatch: {}    # "Run workflow" button for manual runs
+  workflow_dispatch:       # "Run workflow" button for manual runs
+    inputs:
+      rejudge:
+        description: "Re-judge all current jobs (after changing rules or the judge)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write          # to commit data/jobs.db back
@@ -44,7 +49,7 @@ jobs:
           GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
           JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: python -m jobscan.main
+        run: python -m jobscan.main ${{ inputs.rejudge && '--rejudge' || '' }}
 
       - name: Keep today's digest (downloadable from the run page)
         if: always()

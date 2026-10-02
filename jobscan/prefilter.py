@@ -21,9 +21,12 @@ NON_UK = re.compile(
 
 SENIOR_TITLE = re.compile(
     r"\b(senior|sr\.?|staff|principal|lead|head of|director|vp|vice president|"
-    r"manager of|architect|group product manager|chief|"
-    r"distinguished|fellow|partner)\b", re.I)
-# "Associate Product Manager", "Graduate Product Manager", "Product Manager" stay in.
+    r"architect|chief|distinguished|fellow|partner|experienced|mid[- ]level|"
+    r"(engineering|software|security|technical|delivery|program|programme|account|"
+    r"sales|people|hiring|team|group product) manager)\b", re.I)
+# Levelled titles: "Engineer II", "SRE III", "Software Engineer 3", "Data Scientist IV"
+LEVELLED_TITLE = re.compile(r"\b(ii|iii|iv|[2-5])\b\s*(?=$|[),\-–(/|])", re.I)
+# "Associate Product Manager" and "Graduate Product Manager" stay in.
 
 INTERN_TITLE = re.compile(r"\b(intern|internship|placement|summer analyst|spring week|apprentice)\b", re.I)
 
@@ -34,7 +37,7 @@ def check(job: RawJob, salary_floor: int) -> str | None:
     if loc and not EXPLICIT_UK.search(loc):
         if NON_UK.search(loc) or not UK_MARKERS.search(loc):
             return "prefilter: not UK"
-    if SENIOR_TITLE.search(job.title):
+    if SENIOR_TITLE.search(job.title) or LEVELLED_TITLE.search(job.title):
         return "prefilter: senior title"
     if INTERN_TITLE.search(job.title):
         return "prefilter: internship / placement"

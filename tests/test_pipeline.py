@@ -170,3 +170,59 @@ def test_db_save_never_overwrites_status():
 def test_db_rejects_unknown_status():
     with pytest.raises(ValueError):
         db.update(None, "x", "maybe", "")
+
+
+# ---- seniority (titles seen in the first real run) ----
+@pytest.mark.parametrize("title", [
+    "Site Reliability Engineer II", "Security Engineering Manager, London or Lausanne",
+    "Senior Software Engineer", "Software Engineer III", "Data Scientist 2",
+    "Engineering Manager - Payments", "Experienced Backend Engineer"])
+def test_prefilter_drops_mid_and_senior_titles(title):
+    assert prefilter.check(job(title=title), FLOOR) == "prefilter: senior title"
+
+
+@pytest.mark.parametrize("title", [
+    "Software Engineer, New Grad", "Forward Deployed Software Engineer, New Grad - Commercial",
+    "Associate Product Manager", "Graduate Product Manager", "Junior Data Scientist",
+    "Software Engineer (ML Infrastructure), London", "Machine Learning Engineer"])
+def test_prefilter_keeps_entry_and_unlevelled_titles(title):
+    assert prefilter.check(job(title=title), FLOOR) is None
+
+
+def test_full_posting_without_entry_signal_is_dropped():
+    j = job(title="Software Engineer (ML Infrastructure), London",
+            description="Build ML infrastructure in Python. Visa sponsorship available.")
+    r = run(j, on_register=True)
+    assert r.bucket == Bucket.drop and "not entry level" in r.reasons[0]
+
+
+def test_new_grad_title_passes_experience_gate():
+    j = job(title="Software Engineer, New Grad", description="Python. We sponsor visas. Start 2027.")
+    assert run(j, on_register=True).bucket == Bucket.strong
+
+
+def test_low_years_count_as_entry():
+    j = job(title="Machine Learning Engineer", description="1+ years of Python and ML experience. 2027.")
+    assert JUDGE.judge(j).gates.max_2_years_experience == 0.95
+
+
+def test_alert_snippet_without_signal_is_not_dropped():
+    j = job(title="Machine Learning Engineer", description="Acme London", light_data=True)
+    assert run(j).bucket != Bucket.drop
+
+
+@pytest.mark.skipif(not os.environ.get("TEST_DB_URL"), reason="set TEST_DB_URL to a scratch Postgres")
+def test_rejudge_refreshes_bucket_but_keeps_status():
+    url = os.environ["TEST_DB_URL"]
+    j = job(url="https://test.example/rejudge", title="Software Engineer, New Grad",
+            description="Python. We sponsor visas. 2027.")
+    strong = route(j, JUDGE.judge(j), True, CFG)
+    db.save([strong], url)
+    with db.connect(url) as c:
+        db.update(c, j.id, "interested", "look later")
+    dropped = route(j, JUDGE.judge(j.model_copy(update={"description": "5+ years required"})), True, CFG)
+    db.save([dropped], url)
+    with db.connect(url) as c:
+        row = c.execute("SELECT bucket, status, notes FROM jobs WHERE id=%s", (j.id,)).fetchone()
+        c.execute("DELETE FROM jobs WHERE id=%s", (j.id,))
+    assert row == {"bucket": "drop", "status": "interested", "notes": "look later"}

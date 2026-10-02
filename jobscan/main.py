@@ -87,6 +87,8 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--only", help="run a single source by name")
     ap.add_argument("--limit", type=int, help="cap jobs sent to the judge (testing)")
+    ap.add_argument("--rejudge", action="store_true",
+                    help="ignore the seen-jobs list and re-score everything currently listed")
     args = ap.parse_args()
     load_dotenv()
 
@@ -116,7 +118,7 @@ def main() -> None:
     # 2. Dedupe against history + within run
     store = Store(ROOT / "data" / "jobs.db")
     fetched = len(jobs)
-    jobs = store.filter_new(jobs)
+    jobs = store.filter_new(jobs, ignore_history=args.rejudge)
     new = len(jobs)
 
     # 3. Drop snippet copies of jobs we have in full
@@ -157,6 +159,7 @@ def main() -> None:
     if not args.dry_run and db.db_url():
         try:
             added = db.save([r for r in routed if r.verdict is not None])
+            db.mark_dropped([r for r in routed if r.verdict is None])
             print(f"[db] {added} jobs added to Supabase")
         except Exception as e:  # noqa: BLE001
             db_error = f"{type(e).__name__}: {e}"[:200]

@@ -23,7 +23,7 @@ def route(job: RawJob, verdict: JobVerdict | Exception, on_register: bool, cfg: 
     if g.accepts_sept_2027_finish < t["accepts_sept_2027_finish_min"]:
         drops.append("graduation window / start date")
     if g.max_2_years_experience < t["max_2_years_experience_min"]:
-        drops.append("needs 3+ years")
+        drops.append("not entry level (0 to 2 years)")
     if g.uk_based < t["uk_based_min"]:
         drops.append("not UK")
 
