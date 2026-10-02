@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 CREATE INDEX IF NOT EXISTS jobs_first_seen_idx ON jobs (first_seen DESC);
 CREATE INDEX IF NOT EXISTS jobs_bucket_status_idx ON jobs (bucket, status);
+-- Block Supabase's public REST API. This app connects as the database owner, which RLS does not restrict.
+ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 """
 
 INSERT = """
